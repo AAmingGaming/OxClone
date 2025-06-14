@@ -195,10 +195,14 @@ def download_file(href: str, folder_root, req_session=None):
     
     resp = req_session.get(href, headers=request_headers)
     if resp.status_code != 200:
-        print("Unexpected status while downloading file")
+        print(f"Unexpected status while downloading file: {href}")
         return False
     
-    file_name = unquote(resp.url.rsplit("/", 1)[-1])
+    if resp.url.endswith("/"):
+        file_name = strip_schema(resp.url)[:-1]+".html"
+    else:
+        file_name = unquote(resp.url.rsplit("/", 1)[-1])
+        
     if file_name.endswith("?forcedownload=1"):
         file_name = file_name[:-16]
     
@@ -216,6 +220,7 @@ def main():
     
     # Clean output_path
     if os.path.isdir(output_path):
+        
         raise SystemError(f"Output directory already exists: {output_path}")
     
     # Get root website
