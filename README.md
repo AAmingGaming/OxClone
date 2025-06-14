@@ -28,7 +28,28 @@ Download Arhcives? (y/n):
 ## Console output
 As the program is running, status information is output to the console.
 
-Initially the program goes through a scraping phase where it finds the course pages and thier hierarchical structure
+Initially the program goes through a scraping phase where it finds the course pages and thier hierarchical structure the following output:
+```
+3 Sub-Categories in: /Undergraduate/Prelims
+9 Sub-Categories in: /Undergraduate/Prelims/Michaelmas
+7 Sub-Categories in: /Undergraduate/Prelims/Hilary
+2 Sub-Categories in: /Undergraduate/Prelims/Trinity
+```
+Says while searching Undergraduate/Prelims 3 other categories were found (namely Michaelmas, Hillary, and Trinity). Then while exporing each of these branches even more courses/subcategories were found. Since the program didnt branch deeper, we know it found 9, 7, and 2 **courses** in Michealmas, Hillary, and Trinity respectively.
+
+After finding the pages, the program then goes through each of them to find any files on that page e.g. pdfs, example code, and other text. The number of files found in each course page is output to the console.
+
+```
+Found   2 files: ./output/Undergraduate/Induction/Part C and OMMS Induction (202425)
+Found  26 files: ./output/Undergraduate/Prelims/Michaelmas/Prereading and summer work (202425)
+Found   7 files: ./output/Undergraduate/Prelims/Michaelmas/Introduction to University Mathematics (202425)
+```
+Here the console ouput suggests that in the `Introduction to University Mathematics (202425)` course, there were 7 files which were found and attempted to download. If there are any issues while downloading the files e.g. permission error's etc, this is also sent ot the console.
+
+e.g.
+```
+Unexpected status while downloading file: https://weblearn.ox.ac.uk/access/content/group/oxam//uploads/2002/E/7302.pdf
+```
 
 
 # Output
