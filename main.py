@@ -210,6 +210,7 @@ def download_file(href: str, folder_root, req_session=None):
     except Exception as e:
         print(f"Error occured downloading a file, skipping. {href}")
         print(e.with_traceback)
+        return False
     
     if resp.status_code != 200:
         print(f"Unexpected status while downloading file: {href}")
