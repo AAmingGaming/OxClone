@@ -263,10 +263,6 @@ def main():
     # Download all the page contents
     recursive_page_downloader(structure, output_path)
     
-    
-    print(course_structrue)
-    print("End")
-    
 
 if __name__ == "__main__":
     # course test: https://courses.maths.ox.ac.uk/course/view.php?id=5478
