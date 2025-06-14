@@ -12,6 +12,12 @@ def strip_schema(url: str) -> str:
     return url.split('http://', 1)[-1].split('https://', 1)[-1]
 
 
+def make_file_safe_name(name):
+    keepcharacters = (' ','.','_','(',')')  # Explicitly in windows *:\/<>| are not allowed
+    safe_file_name = "".join(c for c in name if c.isalnum() or c in keepcharacters).rstrip()
+    return safe_file_name
+
+
 def scrape(root, tag=None):
     resp = requests.get(root, headers=request_headers)
     
@@ -76,7 +82,8 @@ def recursive_page_downloader(structure: dict | str, folder_root="."):
     
     if isinstance(structure, dict):
         for name, sub_tree in structure.items():
-            recursive_page_downloader(sub_tree, folder_root+"/"+name)
+            folder_name = make_file_safe_name(name)
+            recursive_page_downloader(sub_tree, folder_root+"/"+folder_name)
     elif isinstance(structure, str):
         num_files = scrape_course_page(structure, folder_root)
         print(f"Found {num_files:3d} files: {folder_root}")
@@ -124,7 +131,8 @@ def scrape_course_page(href, folder_root):
     # Folders
     for raw_folder_name, link in folders.items():
         files = deeper_request_check(link)
-        deeper_folder = folder_root + "/" + raw_folder_name.rsplit("Folder", 1)[0].strip()
+        new_folder = raw_folder_name.rsplit("Folder", 1)[0].strip()
+        deeper_folder = folder_root + "/" + make_file_safe_name(new_folder)
         os.makedirs(deeper_folder, exist_ok=True)
         for folder_file in files:
             download_file(folder_file, deeper_folder, req_session)
@@ -206,8 +214,7 @@ def download_file(href: str, folder_root, req_session=None):
     if file_name.endswith("?forcedownload=1"):
         file_name = file_name[:-16]
     
-    keepcharacters = (' ','.','_')
-    safe_file_name = "".join(c for c in file_name if c.isalnum() or c in keepcharacters).rstrip()
+    safe_file_name = make_file_safe_name(file_name)
     with open(folder_root+"/"+safe_file_name, "wb") as f:
         f.write(resp.content)
     
@@ -256,4 +263,6 @@ if __name__ == "__main__":
     # other course test: https://courses.maths.ox.ac.uk/course/view.php?id=5546
     # small scrape: https://courses.maths.ox.ac.uk/course/index.php?categoryid=817
     # general: maths
+    
+    # TODO: Look into - Unexpected status while downloading file: https://royalsocietypublishing.org/doi/10.1098/rsos.150526
     main()
