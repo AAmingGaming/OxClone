@@ -124,7 +124,7 @@ def scrape_course_page(href, folder_root):
     # Folders
     for raw_folder_name, link in folders.items():
         files = deeper_request_check(link)
-        deeper_folder = folder_root + "/" + raw_folder_name
+        deeper_folder = folder_root + "/" + raw_folder_name.rsplit("Folder", 1)[0].strip()
         os.makedirs(deeper_folder, exist_ok=True)
         for folder_file in files:
             download_file(folder_file, deeper_folder, req_session)
@@ -135,7 +135,6 @@ def scrape_course_page(href, folder_root):
         download_file(file, folder_root, req_session)
     found += len(others)
     
-    print("Test")
     return found
     
     
@@ -179,7 +178,7 @@ def find_page_files(content) -> tuple[list, list, dict, list]:
         return False
     
     all_a = soup.find_all("a")
-    other_direct_links = [a["href"] for a in all_a if valid_file_link(a["href"])]
+    other_direct_links = [a["href"] for a in all_a if ("href" in a.attrs.keys()) and valid_file_link(a["href"])]
     
     # "resource/view.php?id=..." <- pdf     always true??
     # "assign/view.php?id=..." <- link for sheet & upload     always true??
@@ -200,6 +199,8 @@ def download_file(href: str, folder_root, req_session=None):
         return False
     
     file_name = unquote(resp.url.rsplit("/", 1)[-1])
+    if file_name.endswith("?forcedownload=1"):
+        file_name = file_name[:-16]
     with open(folder_root+"/"+file_name, "wb") as f:
         f.write(resp.content)
     
@@ -209,6 +210,10 @@ def download_file(href: str, folder_root, req_session=None):
 def main():
     global DO_ARCHIVES
     output_path = "./output/"
+    
+    # Clean output_path
+    if os.path.isdir(output_path):
+        raise SystemError(f"Output directory already exists: {output_path}")
     
     # Get root website
     root_url = input("Input the base website to scrape:").strip().lower() or "maths"
@@ -225,10 +230,8 @@ def main():
     # Gets a tree of all the course pages and the 'route' to get there
     course_structrue = scrape(root_url)
     structure = course_structrue if len(course_structrue) > 0 else root_url
+    print("\nDownload Starting:")
     
-    # Clean output_path
-    if os.path.isdir(output_path):
-        raise SystemError(f"Output directory already exists: {output_path}")
     if output_path.endswith("/"):
         output_path = output_path[:-1]
         
