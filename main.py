@@ -1,17 +1,19 @@
+from urllib.parse import unquote
 import requests
 import os
 
 from bs4 import BeautifulSoup
 
 DO_ARCHIVES = True
-
+# Headers might be needed - further testing needed.
+request_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}
 
 def strip_schema(url: str) -> str:
     return url.split('http://', 1)[-1].split('https://', 1)[-1]
 
 
 def scrape(root, tag=None):
-    resp = requests.get(root)
+    resp = requests.get(root, headers=request_headers)
     
     # check valid status
     if resp.status_code != 200:
@@ -76,22 +78,68 @@ def recursive_page_downloader(structure: dict | str, folder_root="."):
         for name, sub_tree in structure.items():
             recursive_page_downloader(sub_tree, folder_root+"/"+name)
     elif isinstance(structure, str):
-        scrape_course_page(structure, folder_root)
+        num_files = scrape_course_page(structure, folder_root)
+        print(f"{folder_root}: Found {num_files} files")
     else:
         raise TypeError(f"Unsupported type passed: {type(structure)}")
 
 
 def scrape_course_page(href, folder_root):
+    # Session required to get some assignment files e.g. https://courses.maths.ox.ac.uk/pluginfile.php/104615/mod_resource/content/38/Introduction%20to%20University%20Mathematics.pdf?forcedownload=0
+    req_session = requests.Session() 
+    
     # can assume the folder exists
-    page = requests.get(href)
+    page = req_session.get(href, headers=request_headers)
+    if page.status_code != 200:
+        print("Unexpected status while loading course page")
+        return False
+    
     with open(folder_root+"/source.html", 'wb') as f:
         f.write(page.content)
     
     resources, assignments, folders, others = find_page_files(page.content)
+    
+    def deeper_request_check(href):
+        assign_resp = req_session.get(href, headers=request_headers)
+        if assign_resp.status_code != 200:
+            print("Unexpected status while loading deeper page")
+        a, b, c, files = find_page_files(assign_resp.content)  # Only expect direct links
+        if len(a) + len(b) + len(c) > 0:
+            print(f"Non direct file links found in: {assign}")
+        return files
+    
+    found = 0
+    # Download resource files - usually pdfs
+    for resource in resources:
+        download_file(resource, folder_root, req_session)
+    found += len(resources)
+    
+    # Find assignment files & download:
+    for assign in assignments:
+        files = deeper_request_check(assign)
+        for assign_file in files:
+            download_file(assign_file, folder_root, req_session)
+        found += len(files)
+    
+    # Folders
+    for raw_folder_name, link in folders.items():
+        files = deeper_request_check(link)
+        deeper_folder = folder_root + "/" + raw_folder_name
+        os.makedirs(deeper_folder, exist_ok=True)
+        for folder_file in files:
+            download_file(folder_file, deeper_folder, req_session)
+        found += len(files)
+
+    # Direct downloads
+    for file in others:
+        download_file(file, folder_root, req_session)
+    found += len(others)
+    
     print("Test")
+    return found
     
     
-def find_page_files(content) -> (list, list, dict, list):
+def find_page_files(content) -> tuple[list, list, dict, list]:
     # Finds the different resouces on a page and returns the found links
     soup = BeautifulSoup(content, "html.parser")
     
@@ -99,11 +147,11 @@ def find_page_files(content) -> (list, list, dict, list):
     all_divs = soup.find_all("div")
     filtered_divs = [div for div in all_divs if "class" in div.attrs.keys() and div["class"] == ["activityname"]]
     
-    div_links = [div.a["href"] for div in filtered_divs]
+    div_links = [div.a["href"] for div in filtered_divs if div.a is not None]
     
     resource_links = [link for link in div_links if "resource/view.php?id=" in link]  # e.g. lecture notes
     assign_links = [link for link in div_links if "assign/view.php?id=" in link]  # e.g. problem sheets / submission page
-    folder_name_link = {div.a.string: div.a["href"] for div in filtered_divs if "folder/view.php?id=" in div.a["href"]}  # e.g.
+    folder_name_link = {div.a.text.strip(): div.a["href"] for div in filtered_divs if (div.a is not None) and ("folder/view.php?id=" in div.a["href"])}  # e.g.
     
     # Find other file links
     def valid_file_link(link: str) -> bool:
@@ -117,7 +165,14 @@ def find_page_files(content) -> (list, list, dict, list):
             return False
         
         end_url = link.rsplit("/", 1)[-1]
-        if "." in end_url and not ".php" in end_url:
+        
+        # Files to ignore, e.g. other website links
+        ignore_types = ['.php', '.com', '.uk', '.org']
+        for type in ignore_types:
+            if type in end_url:
+                return False
+        
+        if "." in end_url:
             # File extension in end section of url
             return True
         
@@ -132,8 +187,23 @@ def find_page_files(content) -> (list, list, dict, list):
     return resource_links, assign_links, folder_name_link, other_direct_links
 
 
-def download_files(href, folder_root, folder_name=None):
-    pass        
+def download_file(href: str, folder_root, req_session=None):
+    if req_session is None:
+        req_session = requests.Session()
+    
+    if href.endswith("?forcedownload=1"):
+        href = href[:-16]
+    
+    resp = req_session.get(href, headers=request_headers)
+    if resp.status_code != 200:
+        print("Unexpected status while downloading file")
+        return False
+    
+    file_name = unquote(resp.url.rsplit("/", 1)[-1])
+    with open(folder_root+"/"+file_name, "wb") as f:
+        f.write(resp.content)
+    
+    return True
 
 
 def main():
@@ -172,6 +242,7 @@ def main():
 
 if __name__ == "__main__":
     # course test: https://courses.maths.ox.ac.uk/course/view.php?id=5478
+    # other course test: https://courses.maths.ox.ac.uk/course/view.php?id=5546
     # small scrape: https://courses.maths.ox.ac.uk/course/index.php?categoryid=817
     # general: maths
     main()
