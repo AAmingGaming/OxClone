@@ -22,10 +22,10 @@ def scrape(root, tag=None):
     # Find the 
     tree = find_links(resp.content)
     if tag is None:
-        print(f"{len(tree)}: Root - {resp.url}")
+        print(f"{len(tree):3d} Sub-Categories in: Root - {resp.url}")
         tag = ""
     else:
-        print(f"{len(tree)}: {tag}")
+        print(f"{len(tree):3d} Sub-Categories in: {tag}")
     if len(tree) == 0:
         return {}
     tree = domain_expansion(tree, tag)
@@ -79,7 +79,7 @@ def recursive_page_downloader(structure: dict | str, folder_root="."):
             recursive_page_downloader(sub_tree, folder_root+"/"+name)
     elif isinstance(structure, str):
         num_files = scrape_course_page(structure, folder_root)
-        print(f"{folder_root}: Found {num_files} files")
+        print(f"Found {num_files:3d} files: {folder_root}")
     else:
         raise TypeError(f"Unsupported type passed: {type(structure)}")
 
@@ -201,7 +201,10 @@ def download_file(href: str, folder_root, req_session=None):
     file_name = unquote(resp.url.rsplit("/", 1)[-1])
     if file_name.endswith("?forcedownload=1"):
         file_name = file_name[:-16]
-    with open(folder_root+"/"+file_name, "wb") as f:
+    
+    keepcharacters = (' ','.','_')
+    safe_file_name = "".join(c for c in file_name if c.isalnum() or c in keepcharacters).rstrip()
+    with open(folder_root+"/"+safe_file_name, "wb") as f:
         f.write(resp.content)
     
     return True
@@ -216,7 +219,7 @@ def main():
         raise SystemError(f"Output directory already exists: {output_path}")
     
     # Get root website
-    root_url = input("Input the base website to scrape:").strip().lower() or "maths"
+    root_url = input("Input the base website to scrape: ").strip().lower() or "maths"
     
     # adds aliases for the maths course website
     if strip_schema(root_url) in ["maths", "math", "courses.maths.ox.ac.uk", "courses.maths.ox.ac.uk/course/index.php?categoryid=0"]:
