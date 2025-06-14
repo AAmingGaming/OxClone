@@ -25,6 +25,12 @@ The user is also presented with the option to download / skip the archival pages
 Download Arhcives? (y/n):
 ```
 
+## Console output
+As the program is running, status information is output to the console.
+
+Initially the program goes through a scraping phase where it finds the course pages and thier hierarchical structure
+
+
 # Output
 By defualt the scraper outputs to the local folder './output/' which **cannot exist** before running the tool.
 
