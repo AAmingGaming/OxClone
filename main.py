@@ -198,10 +198,19 @@ def download_file(href: str, folder_root, req_session=None):
     if req_session is None:
         req_session = requests.Session()
     
+    if href.startswith("mailto:"):
+        # email link, no useful data.
+        return False
+    
     if href.endswith("?forcedownload=1"):
         href = href[:-16]
     
-    resp = req_session.get(href, headers=request_headers)
+    try:
+        resp = req_session.get(href, headers=request_headers)
+    except Exception as e:
+        print(f"Error occured downloading a file, skipping. {href}")
+        print(e.with_traceback)
+    
     if resp.status_code != 200:
         print(f"Unexpected status while downloading file: {href}")
         return False
