@@ -38,8 +38,8 @@ def get_auth_cookies(url) -> dict:
     return cookies_dict
 
 
-def scrape(root, tag=None):
-    resp = requests.get(root, headers=request_headers)
+def scrape(root, tag=None, cookies=None):
+    resp = requests.get(root, headers=request_headers, cookies=cookies)
     
     # check valid status
     if resp.status_code != 200:
@@ -54,11 +54,11 @@ def scrape(root, tag=None):
         print(f"{len(tree):3d} Sub-Categories in: {tag}")
     if len(tree) == 0:
         return {}
-    tree = domain_expansion(tree, tag)
+    tree = domain_expansion(tree, tag, cookies)
     return tree
     
 
-def domain_expansion(tree: dict, tag) -> dict:
+def domain_expansion(tree: dict, tag: str, cookies: dict) -> dict:
     for name, href in tree.items():
         # Link examples
         #   Category: https://courses.maths.ox.ac.uk/course/index.php?categoryid=807
@@ -74,7 +74,7 @@ def domain_expansion(tree: dict, tag) -> dict:
             continue
         elif "index.php?categoryid=" in href:
             # category
-            tree[name] = scrape(href, tag+"/"+name)
+            tree[name] = scrape(href, tag+"/"+name, cookies)
         else:
             print(f"Unexpected link: {name}, {href}")
         
@@ -287,7 +287,7 @@ def main():
         cookies = {}
         
     # Gets a tree of all the course pages and the 'route' to get there
-    course_structrue = scrape(root_url)
+    course_structrue = scrape(root_url, cookies=cookies)
     structure = course_structrue if len(course_structrue) > 0 else root_url
     print("\nDownload Starting:")
     
@@ -305,6 +305,7 @@ if __name__ == "__main__":
     # general: maths
     
     # cs small: https://courses.cs.ox.ac.uk/course/index.php?categoryid=59
+    # full cs: cs
     
     # TODO: Look into - Unexpected status while downloading file: https://royalsocietypublishing.org/doi/10.1098/rsos.150526
     main()
