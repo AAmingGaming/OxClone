@@ -20,7 +20,7 @@ def strip_schema(url: str) -> str:
 
 
 def make_file_safe_name(name):
-    keepcharacters = (' ','.','_','(',')')  # Explicitly in windows *:\/<>| are not allowed
+    keepcharacters = (' ','.','_', '-','(',')')  # Explicitly in windows *:\/<>| are not allowed
     safe_file_name = "".join(c for c in name if c.isalnum() or c in keepcharacters).rstrip()
     return safe_file_name
 
