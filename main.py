@@ -262,6 +262,7 @@ def download_file(href: str, folder_root, req_session=None, cookies=None):
     else:
         file_name = unquote(resp.url.rsplit("/", 1)[-1])
         
+    file_exclusions = [".aspxfolder", ".moodle"]
     if file_name.endswith("?forcedownload=1"):
         file_name = file_name[:-16]
     
