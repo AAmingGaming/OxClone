@@ -302,6 +302,8 @@ def main():
         
     # Gets a tree of all the course pages and the 'route' to get there
     course_structrue = scrape(root_url, cookies=cookies)
+    alt_structure = domain_expansion({"tmp": root_url}, tag="", cookies=cookies)["tmp"]
+    
     structure = course_structrue if len(course_structrue) > 0 else root_url
     print("\nDownload Starting:")
     
@@ -318,6 +320,7 @@ if __name__ == "__main__":
     # small scrape: https://courses.maths.ox.ac.uk/course/index.php?categoryid=817
     # general: maths
     
+    # cs course test: https://courses.cs.ox.ac.uk/course/view.php?name=ai_2024_2025
     # cs small: https://courses.cs.ox.ac.uk/course/index.php?categoryid=59
     # full cs: cs
     
