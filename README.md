@@ -1,6 +1,16 @@
 # OxClone
  A simple tool to scrape Oxford Courses
 
+# Setup
+Install required packages with
+```shell
+pip install -r ./requirements.txt
+```
+If playwright is being installed for the first time, you may need to also run
+```shell
+playwright install
+```
+
 # Running
 execute the main file with
 ```shell

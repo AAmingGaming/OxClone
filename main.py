@@ -3,6 +3,7 @@ import requests
 import os
 
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 DO_ARCHIVES = True
 # Headers might be needed - further testing needed.
@@ -16,6 +17,25 @@ def make_file_safe_name(name):
     keepcharacters = (' ','.','_','(',')')  # Explicitly in windows *:\/<>| are not allowed
     safe_file_name = "".join(c for c in name if c.isalnum() or c in keepcharacters).rstrip()
     return safe_file_name
+
+
+def get_auth_cookies(url) -> dict:
+    # For cs just loading into the page will prompt for login
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context()  # TODO check for a cache
+        page = context.new_page()
+        
+        page.goto(url)
+        page.wait_for_load_state("load")  # Waits for the page to load fully.
+        page.wait_for_url(url, timeout=0)  # Waits for auth and redirection to original url
+        cookies = context.cookies()
+        # TODO save a cache for cookies
+        
+        browser.close()
+    # adjust cookies to a format for requests
+    cookies_dict = {c["name"]:c["value"] for c in cookies}
+    return cookies_dict
 
 
 def scrape(root, tag=None):
@@ -70,7 +90,7 @@ def find_links(content) -> dict:
     
     all_divs = soup.find_all("div")
     filtered_divs = [div for div in all_divs if "class" in div.attrs.keys() and (div["class"] == "category notloaded with_children collapsed".split() or div["class"] == ["coursename"])]
-    filtered_cats = {div.a.string: div.a['href'] for div in filtered_divs}
+    filtered_cats = {div.a.text: div.a['href'] for div in filtered_divs}
     
     #print(filtered_cats)
     return filtered_cats
@@ -243,14 +263,28 @@ def main():
     # Get root website
     root_url = input("Input the base website to scrape: ").strip().lower() or "maths"
     
-    # adds aliases for the maths course website
-    if strip_schema(root_url) in ["maths", "math", "courses.maths.ox.ac.uk", "courses.maths.ox.ac.uk/course/index.php?categoryid=0"]:
+    # Adds aliases for the maths and cs course websites
+    strip_url = strip_schema(root_url)
+    if strip_url in ["maths", "math", "courses.maths.ox.ac.uk", "courses.maths.ox.ac.uk/course/index.php?categoryid=0"]:
         root_url = "https://courses.maths.ox.ac.uk/course/index.php?categoryid=0"
         DO_ARCHIVES = input("Download Arhcives? (y/n): ").lower().strip() == "y"
+        
+    if strip_url in ["cs", "compsci", "cources.cs.ox.ac.uk"]:
+        root_url = "https://courses.cs.ox.ac.uk/course/index.php?categoryid=0"
+        
+    # Checks if SSO Auth is needed
+    base_url = strip_schema(root_url).split("/",1)[0]
+    sso_auth = base_url in ["courses.cs.ox.ac.uk"]
         
     # Ensures a schema is present
     if not root_url.startswith("http"):
         root_url = "http://" + root_url  # assume not secure
+        
+    # Does authentication if required
+    if sso_auth:
+        cookies = get_auth_cookies(root_url)
+    else:
+        cookies = {}
         
     # Gets a tree of all the course pages and the 'route' to get there
     course_structrue = scrape(root_url)
@@ -269,6 +303,8 @@ if __name__ == "__main__":
     # other course test: https://courses.maths.ox.ac.uk/course/view.php?id=5546
     # small scrape: https://courses.maths.ox.ac.uk/course/index.php?categoryid=817
     # general: maths
+    
+    # cs small: https://courses.cs.ox.ac.uk/course/index.php?categoryid=59
     
     # TODO: Look into - Unexpected status while downloading file: https://royalsocietypublishing.org/doi/10.1098/rsos.150526
     main()
