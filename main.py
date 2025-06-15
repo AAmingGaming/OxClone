@@ -10,7 +10,9 @@ COOKIE_CACHE_FILE = "./cookie_jar.json"
 # Headers might be needed - further testing needed.
 request_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}
 
-
+# +---------------------------------------+
+# |           Helper Functions            |
+# +---------------------------------------+
 def strip_schema(url: str) -> str:
     return url.split('http://', 1)[-1].split('https://', 1)[-1]
 
@@ -41,7 +43,9 @@ def get_auth_cookies(url) -> dict:
     cookies_dict = {c["name"]:c["value"] for c in cookies}
     return cookies_dict
 
-
+# +---------------------------------------+
+# |          Find Course Pages            |
+# +---------------------------------------+
 def scrape(root, tag=None, cookies=None):
     resp = requests.get(root, headers=request_headers, cookies=cookies)
     
@@ -73,10 +77,12 @@ def domain_expansion(tree: dict, tag: str, cookies: dict) -> dict:
             print("Skipping Archives!")
             continue
         
-        if "view.php?id=" in href:
+        courses = ("course/view.php?id=", "course/view.php?name=")
+        if any(sub in href for sub in courses):
             # course, do nothing
             continue
-        elif "index.php?categoryid=" in href:
+        # consistent between maths & cs
+        elif "course/index.php?categoryid=" in href:
             # category
             tree[name] = scrape(href, tag+"/"+name, cookies)
         else:
@@ -93,13 +99,17 @@ def find_links(content) -> dict:
     soup = BeautifulSoup(content, 'html.parser')
     
     all_divs = soup.find_all("div")
-    filtered_divs = [div for div in all_divs if "class" in div.attrs.keys() and (div["class"] == "category notloaded with_children collapsed".split() or div["class"] == ["coursename"])]
-    filtered_cats = {div.a.text: div.a['href'] for div in filtered_divs}
     
-    #print(filtered_cats)
-    return filtered_cats
+    filtered_links = [div.a for div in all_divs if div.a is not None]
+    valid_links = ("course/index.php?categoryid=", "course/view.php?name=", "course/view.php?id=")
+    link_categories = {a.text: a["href"] for a in filtered_links if any(sub in a["href"] for sub in valid_links)}
+
+    return link_categories
 
 
+# +---------------------------------------+
+# |        Download Course Pages          |
+# +---------------------------------------+
 def recursive_page_downloader(structure: dict | str, folder_root="."):
     # go through the tree to setup folders and call page downloader
     os.makedirs(folder_root, exist_ok=True)
