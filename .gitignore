@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 /output/*
+cookie_jar.json

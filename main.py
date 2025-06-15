@@ -6,8 +6,10 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 DO_ARCHIVES = True
+COOKIE_CACHE_FILE = "./cookie_jar.json"
 # Headers might be needed - further testing needed.
 request_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"}
+
 
 def strip_schema(url: str) -> str:
     return url.split('http://', 1)[-1].split('https://', 1)[-1]
@@ -21,16 +23,18 @@ def make_file_safe_name(name):
 
 def get_auth_cookies(url) -> dict:
     # For cs just loading into the page will prompt for login
+    cookie_cache = COOKIE_CACHE_FILE if os.path.isfile(COOKIE_CACHE_FILE) else None
+    
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
-        context = browser.new_context()  # TODO check for a cache
+        context = browser.new_context(storage_state=cookie_cache)
         page = context.new_page()
         
         page.goto(url)
         page.wait_for_load_state("load")  # Waits for the page to load fully.
         page.wait_for_url(url, timeout=0)  # Waits for auth and redirection to original url
         cookies = context.cookies()
-        # TODO save a cache for cookies
+        context.storage_state(path=COOKIE_CACHE_FILE)
         
         browser.close()
     # adjust cookies to a format for requests
