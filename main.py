@@ -1,9 +1,11 @@
 from urllib.parse import unquote
 import requests
+from requests.cookies import cookiejar_from_dict
 import os
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
+
 
 DO_ARCHIVES = True
 COOKIE_CACHE_FILE = "./cookie_jar.json"
@@ -110,7 +112,7 @@ def find_links(content) -> dict:
 # +---------------------------------------+
 # |        Download Course Pages          |
 # +---------------------------------------+
-def recursive_page_downloader(structure: dict | str, folder_root="."):
+def recursive_page_downloader(structure: dict | str, folder_root=".", cookies=None):
     # go through the tree to setup folders and call page downloader
     os.makedirs(folder_root, exist_ok=True)
     
@@ -119,15 +121,17 @@ def recursive_page_downloader(structure: dict | str, folder_root="."):
             folder_name = make_file_safe_name(name)
             recursive_page_downloader(sub_tree, folder_root+"/"+folder_name)
     elif isinstance(structure, str):
-        num_files = scrape_course_page(structure, folder_root)
+        num_files = scrape_course_page(structure, folder_root, cookies=cookies)
         print(f"Found {num_files:3d} files: {folder_root}")
     else:
         raise TypeError(f"Unsupported type passed: {type(structure)}")
 
 
-def scrape_course_page(href, folder_root):
+def scrape_course_page(href, folder_root, cookies=None):
     # Session required to get some assignment files e.g. https://courses.maths.ox.ac.uk/pluginfile.php/104615/mod_resource/content/38/Introduction%20to%20University%20Mathematics.pdf?forcedownload=0
     req_session = requests.Session() 
+    # Set the cookies of the session for privaliged courses
+    req_session.cookies = cookiejar_from_dict(cookies)
     
     # can assume the folder exists
     page = req_session.get(href, headers=request_headers)
@@ -228,9 +232,12 @@ def find_page_files(content) -> tuple[list, list, dict, list]:
     return resource_links, assign_links, folder_name_link, other_direct_links
 
 
-def download_file(href: str, folder_root, req_session=None):
+def download_file(href: str, folder_root, req_session=None, cookies=None):
     if req_session is None:
         req_session = requests.Session()
+        req_session.cookies = cookiejar_from_dict(cookies)
+    elif cookies is not None:
+        print("requests.Session and cookies both provided, ignoring cookies")
     
     if href.startswith("mailto:"):
         # email link, no useful data.
@@ -240,7 +247,7 @@ def download_file(href: str, folder_root, req_session=None):
         href = href[:-16]
     
     try:
-        resp = req_session.get(href, headers=request_headers)
+        resp = req_session.get(href, headers=request_headers, cookies=cookies)
     except Exception as e:
         print(f"Error occured downloading a file, skipping. {href}")
         print(e.with_traceback)
@@ -301,17 +308,15 @@ def main():
         cookies = {}
         
     # Gets a tree of all the course pages and the 'route' to get there
-    course_structrue = scrape(root_url, cookies=cookies)
-    alt_structure = domain_expansion({"tmp": root_url}, tag="", cookies=cookies)["tmp"]
-    
-    structure = course_structrue if len(course_structrue) > 0 else root_url
+    structure = domain_expansion({"tmp": root_url}, tag="", cookies=cookies)["tmp"]
+    #structure = course_structrue if len(course_structrue) > 0 else root_url
     print("\nDownload Starting:")
     
     if output_path.endswith("/"):
         output_path = output_path[:-1]
         
     # Download all the page contents
-    recursive_page_downloader(structure, output_path)
+    recursive_page_downloader(structure, output_path, cookies=cookies)
     
 
 if __name__ == "__main__":
@@ -321,7 +326,7 @@ if __name__ == "__main__":
     # general: maths
     
     # cs course test: https://courses.cs.ox.ac.uk/course/view.php?name=ai_2024_2025
-    # cs small: https://courses.cs.ox.ac.uk/course/index.php?categoryid=59
+    # cs small: https://courses.cs.ox.ac.uk/course/index.php?categoryid=22
     # full cs: cs
     
     # TODO: Look into - Unexpected status while downloading file: https://royalsocietypublishing.org/doi/10.1098/rsos.150526
