@@ -55,8 +55,11 @@ def scrape(root, tag=None, cookies=None):
     if resp.status_code != 200:
         print(f"Invalid response code returned ({resp.status_code}), check the url.")
     
-    # Find the 
-    tree = find_links(resp.content)
+    # Find host_url - assuming '//' always exists as part of schema
+    host_url = "/".join(resp.url.split('/')[:3])
+    
+    # Find the links to categories and courses from a category.
+    tree = find_links(resp.content, host_url)
     if tag is None:
         print(f"{len(tree):3d} Sub-Categories in: Root - {resp.url}")
         tag = ""
@@ -96,7 +99,7 @@ def domain_expansion(tree: dict, tag: str, cookies: dict) -> dict:
     return tree
         
 
-def find_links(content) -> dict:
+def find_links(content, host_url) -> dict:
     # given a connection response, find the links to courses / course categories
     soup = BeautifulSoup(content, 'html.parser')
     
@@ -106,7 +109,10 @@ def find_links(content) -> dict:
     valid_links = ("course/index.php?categoryid=", "course/view.php?name=", "course/view.php?id=")
     link_categories = {a.text: a["href"] for a in filtered_links if any(sub in a["href"] for sub in valid_links)}
 
-    return link_categories
+    # Sometimes links are only '/course/...' thus are relative links, fully formed links are needed for requests.
+    resolved_links = {key: (value if value[0] != "/" else host_url+value) for key, value in link_categories.items()}
+    
+    return resolved_links
 
 
 # +---------------------------------------+
@@ -119,7 +125,7 @@ def recursive_page_downloader(structure: dict | str, folder_root=".", cookies=No
     if isinstance(structure, dict):
         for name, sub_tree in structure.items():
             folder_name = make_file_safe_name(name)
-            recursive_page_downloader(sub_tree, folder_root+"/"+folder_name)
+            recursive_page_downloader(sub_tree, folder_root+"/"+folder_name, cookies=cookies)
     elif isinstance(structure, str):
         num_files = scrape_course_page(structure, folder_root, cookies=cookies)
         print(f"Found {num_files:3d} files: {folder_root}")
@@ -262,7 +268,10 @@ def download_file(href: str, folder_root, req_session=None, cookies=None):
     else:
         file_name = unquote(resp.url.rsplit("/", 1)[-1])
         
-    file_exclusions = [".aspxfolder", ".moodle"]
+    file_exclusions = [".aspx", ".moodle"]
+    if any(excl in file_name for excl in file_exclusions):
+        return False
+        
     if file_name.endswith("?forcedownload=1"):
         file_name = file_name[:-16]
     
@@ -309,7 +318,7 @@ def main():
         cookies = {}
         
     # Gets a tree of all the course pages and the 'route' to get there
-    structure = domain_expansion({"tmp": root_url}, tag="", cookies=cookies)["tmp"]
+    structure = domain_expansion({"root": root_url}, tag="", cookies=cookies)["root"]
     #structure = course_structrue if len(course_structrue) > 0 else root_url
     print("\nDownload Starting:")
     
