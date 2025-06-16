@@ -253,12 +253,17 @@ def download_file(href: str, folder_root, req_session=None, cookies=None):
         # prevent wierd interaction with forcedownload
         href = href[:-16]
     
-    try:
-        resp = req_session.get(href, headers=request_headers, cookies=cookies)
-    except Exception as e:
-        print(f"Error occured downloading a file, skipping. {href}")
-        print(e.with_traceback)
-        return False
+    error_count = 0
+    while error_count < 3:
+        try:
+            resp = req_session.get(href, headers=request_headers, cookies=cookies)
+            break
+        except Exception as e:
+            error_count += 1
+            if error_count == 3:
+                print(f"Error occured downloading a file, skipping. {href}")
+                print(e)
+                return False
     
     if resp.status_code != 200:
         print(f"Unexpected status while downloading file: {href}")
