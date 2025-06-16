@@ -250,6 +250,7 @@ def download_file(href: str, folder_root, req_session=None, cookies=None):
         return False
     
     if href.endswith("?forcedownload=1"):
+        # prevent wierd interaction with forcedownload
         href = href[:-16]
     
     try:
@@ -263,6 +264,13 @@ def download_file(href: str, folder_root, req_session=None, cookies=None):
         print(f"Unexpected status while downloading file: {href}")
         return False
     
+    # Checks for redirct to SSO - user lacks permissions
+    host = strip_schema(resp.url).split("/", 1)[0]
+    if host == "idp.shibboleth.ox.ac.uk":
+        print("SSO required, skipping " + href)
+        return False
+    
+    # Simple filters to exclude certain files
     if resp.url.endswith("/"):
         file_name = strip_schema(resp.url)[:-1]+".html"
     else:
@@ -272,11 +280,28 @@ def download_file(href: str, folder_root, req_session=None, cookies=None):
     if any(excl in file_name for excl in file_exclusions):
         return False
         
-    if file_name.endswith("?forcedownload=1"):
-        file_name = file_name[:-16]
-    
+    # Remove arguments to url
+    file_name = file_name.split("?",1)[0]
     safe_file_name = make_file_safe_name(file_name)
-    with open(folder_root+"/"+safe_file_name, "wb") as f:
+    
+    if len(safe_file_name.rsplit(".")) == 2:
+        file_root, file_ext = safe_file_name.rsplit(".")
+        file_ext = "." + file_ext
+    else:
+        file_root = safe_file_name
+        file_ext = ""
+        
+    # Create a unique file name
+    i = 0
+    make_unique = ""
+    while os.path.exists(folder_root + "/" + file_root + make_unique + file_ext):
+        i += 1
+        make_unique = f" ({i})"
+        
+    end_file_name = file_root + make_unique + file_ext
+    
+    # Save the file
+    with open(folder_root+"/"+end_file_name, "wb") as f:
         f.write(resp.content)
     
     return True
